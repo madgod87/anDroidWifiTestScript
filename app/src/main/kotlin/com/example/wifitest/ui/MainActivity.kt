@@ -120,17 +120,42 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun exportResults() {
         viewModelScope.launch {
             val allResults = results.first()
-            HardwareUtils.exportToCsv(getApplication(), allResults)
-            Toast.makeText(getApplication(), "CSV Report exported to Downloads", Toast.LENGTH_SHORT).show()
+            val file = HardwareUtils.exportToCsv(getApplication(), allResults)
+            if (file != null) {
+                shareFile(file, "text/csv")
+            } else {
+                Toast.makeText(getApplication(), "Failed to generate CSV", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
     fun exportResultsPdf() {
         viewModelScope.launch {
             val allResults = results.first()
-            HardwareUtils.exportToPdf(getApplication(), allResults)
-            Toast.makeText(getApplication(), "PDF Summary exported to Downloads", Toast.LENGTH_SHORT).show()
+            val file = HardwareUtils.exportToPdf(getApplication(), allResults)
+            if (file != null) {
+                shareFile(file, "application/pdf")
+            } else {
+                Toast.makeText(getApplication(), "Failed to generate PDF", Toast.LENGTH_SHORT).show()
+            }
         }
+    }
+
+    private fun shareFile(file: java.io.File, mimeType: String) {
+        val context = getApplication<Application>()
+        val uri = androidx.core.content.FileProvider.getUriForFile(
+            context,
+            "com.example.wifitest.fileprovider",
+            file
+        )
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = mimeType
+            putExtra(Intent.EXTRA_STREAM, uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        val chooser = Intent.createChooser(intent, "Share Mission Report")
+        chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        context.startActivity(chooser)
     }
 
     private val _selectedResult = mutableStateOf<TestResult?>(null)
