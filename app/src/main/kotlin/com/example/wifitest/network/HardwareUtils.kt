@@ -22,15 +22,36 @@ object HardwareUtils {
     data class ScannedNetwork(
         val ssid: String,
         val rssi: Int,
-        val capabilities: String
+        val capabilities: String,
+        val frequency: Int,
+        val channel: Int,
+        val congestionScore: Int = 0
     )
+
+    fun getChannelFromFrequency(frequency: Int): Int {
+        return when {
+            frequency == 2484 -> 14
+            frequency in 2407..2472 -> (frequency - 2407) / 5 + 1
+            frequency in 5170..5925 -> (frequency - 5170) / 5 + 34
+            else -> 0
+        }
+    }
 
     @Suppress("DEPRECATION")
     fun getNearbySsids(context: Context): List<ScannedNetwork> {
         val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
-        return wifiManager.scanResults
+        val results = wifiManager.scanResults
+        
+        return results
             .filter { it.SSID.isNotBlank() }
-            .map { ScannedNetwork(it.SSID, it.level, it.capabilities) }
+            .map { 
+                val channel = getChannelFromFrequency(it.frequency)
+                // Calculate congestion: count how many other APs are on the same channel
+                val congestion = results.count { res -> 
+                    getChannelFromFrequency(res.frequency) == channel 
+                }
+                ScannedNetwork(it.SSID, it.level, it.capabilities, it.frequency, channel, congestion) 
+            }
             .sortedByDescending { it.rssi }
             .distinctBy { it.ssid }
     }
@@ -95,19 +116,84 @@ object HardwareUtils {
             val file = File(downloadsDir, fileName)
             val writer = FileWriter(file)
             
-            writer.append("Timestamp,SSID,BSSID,RSSI,Freq,LinkSpeed,Gateway,Mbps,Latency,Jitter,Loss,Score,Label\n")
+            writer.append("Timestamp,SSID,BSSID,RSSI,Channel,Gateway,DL_Mbps,UL_Mbps,Latency,Jitter,Loss,Score,Label\n")
             
             val df = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
             results.forEach { res ->
                 writer.append("${df.format(Date(res.timestamp))},")
-                writer.append("${res.ssid},${res.bssid},${res.rssi},${res.frequency},")
-                writer.append("${res.linkSpeed},${res.gatewayIp},${res.downloadMbps},")
+                writer.append("${res.ssid},${res.bssid},${res.rssi},${res.channel},")
+                writer.append("${res.gatewayIp},${res.downloadMbps},${res.uploadMbps},")
                 writer.append("${res.latencyMs},${res.jitterMs},${res.packetLossPercent},")
                 writer.append("${res.reliabilityScore},${res.qualityLabel}\n")
             }
             
             writer.flush()
             writer.close()
+            file
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    suspend fun exportToPdf(context: Context, results: List<TestResult>): File? = withContext(Dispatchers.IO) {
+        try {
+            val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+            val fileName = "Mission_Summary_$timestamp.pdf"
+            val downloadsDir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: return@withContext null
+            val file = File(downloadsDir, fileName)
+
+            val pdfDocument = android.graphics.pdf.PdfDocument()
+            val paint = android.graphics.Paint()
+            val titlePaint = android.graphics.Paint().apply {
+                textSize = 24f
+                isFakeBoldText = true
+                color = android.graphics.Color.BLACK
+            }
+            val textPaint = android.graphics.Paint().apply {
+                textSize = 12f
+                color = android.graphics.Color.DKGRAY
+            }
+
+            // Create page
+            val pageInfo = android.graphics.pdf.PdfDocument.PageInfo.Builder(595, 842, 1).create()
+            val page = pdfDocument.startPage(pageInfo)
+            val canvas = page.canvas
+
+            // Header
+            canvas.drawText("WI-FI GRID MISSION SUMMARY", 40f, 60f, titlePaint)
+            canvas.drawText("Generated: ${SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())}", 40f, 85f, textPaint)
+            canvas.drawLine(40f, 100f, 555f, 100f, textPaint)
+
+            // Table Header
+            var y = 130f
+            paint.isFakeBoldText = true
+            canvas.drawText("SSID", 40f, y, paint)
+            canvas.drawText("DL (Mbps)", 180f, y, paint)
+            canvas.drawText("UL (Mbps)", 260f, y, paint)
+            canvas.drawText("Ping", 340f, y, paint)
+            canvas.drawText("Score", 420f, y, paint)
+            canvas.drawText("Label", 480f, y, paint)
+
+            y += 20f
+            canvas.drawLine(40f, y-10f, 555f, y-10f, textPaint)
+            paint.isFakeBoldText = false
+
+            // Draw Results (Last 25 for space)
+            results.take(25).forEach { res ->
+                canvas.drawText(res.ssid.take(20), 40f, y, textPaint)
+                canvas.drawText(String.format("%.1f", res.downloadMbps), 180f, y, textPaint)
+                canvas.drawText(String.format("%.1f", res.uploadMbps), 260f, y, textPaint)
+                canvas.drawText("${res.latencyMs}ms", 340f, y, textPaint)
+                canvas.drawText("${res.reliabilityScore}%", 420f, y, textPaint)
+                canvas.drawText(res.qualityLabel, 480f, y, textPaint)
+                y += 25f
+                if (y > 800) return@forEach // Basic overflow protection
+            }
+
+            pdfDocument.finishPage(page)
+            pdfDocument.writeTo(file.outputStream())
+            pdfDocument.close()
             file
         } catch (e: Exception) {
             e.printStackTrace()

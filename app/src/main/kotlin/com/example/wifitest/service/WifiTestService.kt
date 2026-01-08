@@ -143,8 +143,14 @@ class WifiTestService : Service() {
         val downloadSpeed = NetworkTestUtils.runSpeedTest("https://speed.cloudflare.com/__down?bytes=10000000", network)
         val uploadSpeed = NetworkTestUtils.runUploadSpeedTest(network = network)
         val metrics = NetworkTestUtils.runLatencyMetrics(network = network)
+        val dnsTime = NetworkTestUtils.runDnsTest(network = network)
         val gateway = HardwareUtils.getGatewayIp(this)
         
+        var trouble: String? = null
+        if (downloadSpeed <= 0.1 && metrics.lossPercent >= 90) {
+            trouble = NetworkTestUtils.diagnoseNoInternet(gateway, network)
+        }
+
         val quality = NetworkQualityAnalyzer.calculateReliability(
             metrics.avgMs, 
             metrics.jitterMs, 
@@ -159,13 +165,16 @@ class WifiTestService : Service() {
             latencyMs = metrics.avgMs,
             jitterMs = metrics.jitterMs,
             packetLossPercent = metrics.lossPercent,
+            dnsResolutionMs = dnsTime,
+            dhcpTimeMs = 0, // Not easily measurable without low-level hook
             rssi = hw.rssi,
             frequency = hw.frequency,
-            linkSpeed = hw.linkSpeed,
+            channel = HardwareUtils.getChannelFromFrequency(hw.frequency),
             bssid = hw.bssid,
             gatewayIp = gateway,
             reliabilityScore = quality.score,
-            qualityLabel = quality.label
+            qualityLabel = quality.label,
+            troubleshootingInfo = trouble
         )
         db.dao().insertResult(result)
     }

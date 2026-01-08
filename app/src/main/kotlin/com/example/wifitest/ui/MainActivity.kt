@@ -87,6 +87,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _savedSsids = mutableStateOf<Set<String>>(emptySet())
     val savedSsids: State<Set<String>> = _savedSsids
 
+    private val _isGuardActive = mutableStateOf(false)
+    val isGuardActive: State<Boolean> = _isGuardActive
+
     fun scanNearby() {
         _isScanning.value = true
         viewModelScope.launch(Dispatchers.IO) {
@@ -118,8 +121,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val allResults = results.first()
             HardwareUtils.exportToCsv(getApplication(), allResults)
-            Toast.makeText(getApplication(), "Report exported to Downloads", Toast.LENGTH_SHORT).show()
+            Toast.makeText(getApplication(), "CSV Report exported to Downloads", Toast.LENGTH_SHORT).show()
         }
+    }
+
+    fun exportResultsPdf() {
+        viewModelScope.launch {
+            val allResults = results.first()
+            HardwareUtils.exportToPdf(getApplication(), allResults)
+            Toast.makeText(getApplication(), "PDF Summary exported to Downloads", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private val _selectedResult = mutableStateOf<TestResult?>(null)
+    val selectedResult: State<TestResult?> = _selectedResult
+
+    fun selectResult(result: TestResult?) {
+        _selectedResult.value = result
     }
 
     val vault: Flow<List<com.example.wifitest.data.VaultEntity>> = db.dao().getVaultNetworks()
@@ -142,6 +160,33 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun removeNetwork(ssid: String) {
         viewModelScope.launch(Dispatchers.IO) { db.dao().removeSelected(ssid) }
+    }
+
+    fun toggleNodeGuard(ssid: String, current: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val nodes = db.dao().getSelectedNetworksSnapshot()
+            nodes.find { it.ssid == ssid }?.let { node ->
+                db.dao().insertSelected(node.copy(isGuardEnabled = !current))
+            }
+        }
+    }
+
+    fun toggleGlobalGuard(context: Context) {
+        _isGuardActive.value = !_isGuardActive.value
+        if (_isGuardActive.value) {
+            val request = androidx.work.PeriodicWorkRequestBuilder<com.example.wifitest.worker.GuardWorker>(
+                15, java.util.concurrent.TimeUnit.MINUTES
+            ).build()
+            androidx.work.WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+                "GuardMission",
+                androidx.work.ExistingPeriodicWorkPolicy.UPDATE,
+                request
+            )
+            Toast.makeText(context, "GUARD MODE INITIALIZED: 15m intervals", Toast.LENGTH_SHORT).show()
+        } else {
+            androidx.work.WorkManager.getInstance(context).cancelUniqueWork("GuardMission")
+            Toast.makeText(context, "GUARD MODE DEACTIVATED", Toast.LENGTH_SHORT).show()
+        }
     }
 
     fun deleteVault(ssid: String) {
@@ -225,13 +270,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         finalizeTesting()
         _testStatus.value = "MANUAL TERMINATION"
         Toast.makeText(context, "Sequence Aborted", Toast.LENGTH_SHORT).show()
-    }
-
-    private val _selectedResult = mutableStateOf<TestResult?>(null)
-    val selectedResult: State<TestResult?> = _selectedResult
-
-    fun selectResult(result: TestResult?) {
-        _selectedResult.value = result
     }
 }
 
@@ -429,8 +467,10 @@ fun WifiDiagnosticDashboard(
     val dateFormat = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
 
     if (selectedResult != null) {
+        val resultList by viewModel.results.collectAsState(initial = emptyList())
         MissionLogDetailDialog(
             result = selectedResult!!,
+            history = resultList,
             onDismiss = { viewModel.selectResult(null) }
         )
     }
@@ -476,7 +516,11 @@ fun WifiDiagnosticDashboard(
                     )
                 }
                 
-                NeonIconButton(Icons.Default.Share) { viewModel.exportResults() }
+                Row {
+                    NeonIconButton(Icons.Default.PictureAsPdf) { viewModel.exportResultsPdf() }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    NeonIconButton(Icons.Default.Share) { viewModel.exportResults() }
+                }
             }
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -577,6 +621,39 @@ fun DashboardContent(
                         fontWeight = FontWeight.Bold,
                         color = Color.White
                     )
+                    
+                    Spacer(modifier = Modifier.height(12.dp))
+                    
+                    val isGuardActive by viewModel.isGuardActive
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(if (isGuardActive) NeonCyan.copy(alpha = 0.1f) else Color.White.copy(alpha = 0.05f))
+                            .clickable { viewModel.toggleGlobalGuard(context) }
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            if (isGuardActive) Icons.Default.Security else Icons.Default.Shield, 
+                            contentDescription = null, 
+                            tint = if (isGuardActive) NeonCyan else Color.Gray
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                "GUARD MODE: ${if (isGuardActive) "OPERATIONAL" else "STANDBY"}", 
+                                color = if (isGuardActive) NeonCyan else Color.White, 
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                if (isGuardActive) "Auto-testing selected nodes every 15m" else "Tap to activate background monitoring",
+                                color = Color.Gray,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                    }
                     Spacer(modifier = Modifier.height(24.dp))
                     
                     Button(
@@ -616,7 +693,11 @@ fun DashboardContent(
                 }
                 items(selected, key = { "armed_${it.ssid}" }) { node ->
                     AnimatedVisibility(visible = true, enter = slideInHorizontally() + fadeIn()) {
-                        RegisteredNodeCard(node.ssid) { viewModel.removeNetwork(node.ssid) }
+                        RegisteredNodeCard(
+                            node = node,
+                            onToggleGuard = { viewModel.toggleNodeGuard(node.ssid, node.isGuardEnabled) },
+                            onRemove = { viewModel.removeNetwork(node.ssid) }
+                        )
                     }
                 }
             }
@@ -643,7 +724,7 @@ fun DashboardContent(
                 val isSecure = network.capabilities.contains("WPA") || network.capabilities.contains("WEP")
 
                 AnimatedVisibility(visible = true, enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn()) {
-                    NodeCard(network.ssid, network.rssi, isRegistered, isSaved) {
+                    NodeCard(network, isRegistered, isSaved) {
                         if (isRegistered) {
                             viewModel.removeNetwork(network.ssid)
                         } else {
@@ -753,9 +834,31 @@ fun ReportsContent(results: List<TestResult>, dateFormat: SimpleDateFormat, onRe
     }
 }
 
+@Composable
+fun ScoreTrendGraph(history: List<TestResult>) {
+    val scores = history.map { it.reliabilityScore.toFloat() }.reversed()
+    if (scores.size < 2) return
+
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
+        Text("PERFORMANCE TREND (LAST ${scores.size} TESTS)", style = MaterialTheme.typography.labelSmall, color = NeonCyan.copy(alpha = 0.6f))
+        Spacer(modifier = Modifier.height(8.dp))
+        androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxWidth().height(40.dp)) {
+            val stepX = size.width / (scores.size - 1)
+            val path = androidx.compose.ui.graphics.Path()
+            scores.forEachIndexed { index, score ->
+                val x = index * stepX
+                val y = size.height - (score / 100f * size.height)
+                if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                drawCircle(NeonCyan, 3f, androidx.compose.ui.geometry.Offset(x, y))
+            }
+            drawPath(path, NeonCyan, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2f))
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MissionLogDetailDialog(result: TestResult, onDismiss: () -> Unit) {
+fun MissionLogDetailDialog(result: TestResult, history: List<TestResult>, onDismiss: () -> Unit) {
     BasicAlertDialog(
         onDismissRequest = onDismiss,
         modifier = Modifier.fillMaxWidth(0.95f),
@@ -787,14 +890,15 @@ fun MissionLogDetailDialog(result: TestResult, onDismiss: () -> Unit) {
                 DetailSection("PHYSICAL LAYER") {
                     DetailRow("BSSID", result.bssid)
                     DetailRow("Frequency", "${result.frequency} MHz")
+                    DetailRow("Channel", "CH ${result.channel}")
                     DetailRow("RSSI", "${result.rssi} dBm")
-                    DetailRow("Base Link Speed", "${result.linkSpeed} Mbps")
                 }
                 
                 Spacer(modifier = Modifier.height(16.dp))
                 
                 DetailSection("NETWORK LAYER") {
                     DetailRow("Gateway IP", result.gatewayIp)
+                    DetailRow("DNS Resolution", if (result.dnsResolutionMs > 0) "${result.dnsResolutionMs} ms" else "FAILED")
                     DetailRow("Download Speed", "${String.format("%.2f", result.downloadMbps)} Mbps")
                     DetailRow("Upload Speed", "${String.format("%.2f", result.uploadMbps)} Mbps")
                 }
@@ -807,6 +911,21 @@ fun MissionLogDetailDialog(result: TestResult, onDismiss: () -> Unit) {
                     DetailRow("Packet Loss", "${result.packetLossPercent}%")
                     DetailRow("Reliability Score", "${result.reliabilityScore}/100")
                 }
+
+                if (result.troubleshootingInfo != null) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    DetailSection("TROUBLESHOOTING") {
+                        Text(
+                            result.troubleshootingInfo, 
+                            color = CyberPink, 
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+                ScoreTrendGraph(history.filter { it.ssid == result.ssid }.take(10))
 
                 Spacer(modifier = Modifier.height(24.dp))
                 
@@ -921,7 +1040,7 @@ fun StatusRow(label: String, status: String) {
 }
 
 @Composable
-fun RegisteredNodeCard(ssid: String, onRemove: () -> Unit) {
+fun RegisteredNodeCard(node: SelectedWifi, onToggleGuard: () -> Unit, onRemove: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -932,8 +1051,25 @@ fun RegisteredNodeCard(ssid: String, onRemove: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(Icons.Default.Link, contentDescription = null, tint = NeonPurple)
-        Spacer(modifier = Modifier.width(16.dp))
-        Text(ssid, color = Color.White, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+        Spacer(modifier = Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(node.ssid, color = Color.White, fontWeight = FontWeight.Bold)
+            if (node.isGuardEnabled) {
+                Text("GUARD ACTIVE", color = NeonCyan, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+            }
+        }
+        
+        IconButton(onClick = onToggleGuard, modifier = Modifier.size(32.dp)) {
+            Icon(
+                if (node.isGuardEnabled) Icons.Default.Security else Icons.Default.Shield, 
+                contentDescription = "Toggle Guard", 
+                tint = if (node.isGuardEnabled) NeonCyan else Color.Gray,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+        
+        Spacer(modifier = Modifier.width(8.dp))
+        
         IconButton(onClick = onRemove, modifier = Modifier.size(32.dp)) {
             Icon(Icons.Default.Delete, contentDescription = "Remove", tint = CyberPink, modifier = Modifier.size(20.dp))
         }
@@ -941,7 +1077,9 @@ fun RegisteredNodeCard(ssid: String, onRemove: () -> Unit) {
 }
 
 @Composable
-fun NodeCard(ssid: String, rssi: Int, isRegistered: Boolean, isSaved: Boolean, onAction: () -> Unit) {
+fun NodeCard(network: HardwareUtils.ScannedNetwork, isRegistered: Boolean, isSaved: Boolean, onAction: () -> Unit) {
+    val ssid = network.ssid
+    val rssi = network.rssi
     val strengthColor = when {
         rssi > -50 -> NeonCyan
         rssi > -70 -> NeonPurple
@@ -979,19 +1117,35 @@ fun NodeCard(ssid: String, rssi: Int, isRegistered: Boolean, isSaved: Boolean, o
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(modifier = Modifier.size(6.dp).background(strengthColor, CircleShape))
                 Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        if (isRegistered) "ARMED" else if (isSaved) "SAVED" else "UNLINKED", 
-                        color = if (isRegistered) NeonCyan else if (isSaved) NeonPurple else Color.Gray, 
-                        style = MaterialTheme.typography.labelSmall,
-                        letterSpacing = 1.sp
-                    )
+                Text(
+                    "CH ${network.channel} • ", 
+                    color = Color.White.copy(alpha = 0.7f), 
+                    style = MaterialTheme.typography.labelSmall
+                )
+                Text(
+                    if (isRegistered) "ARMED" else if (isSaved) "SAVED" else "UNLINKED", 
+                    color = if (isRegistered) NeonCyan else if (isSaved) NeonPurple else Color.Gray, 
+                    style = MaterialTheme.typography.labelSmall,
+                    letterSpacing = 1.sp
+                )
             }
         }
 
         Column(horizontalAlignment = Alignment.End) {
             Text("${rssi} dBm", color = Color.White.copy(alpha = 0.6f), style = MaterialTheme.typography.bodySmall)
-            if (isRegistered) {
-                Icon(Icons.Default.CheckCircle, contentDescription = null, tint = NeonCyan, modifier = Modifier.size(16.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Default.Layers, 
+                    contentDescription = null, 
+                    tint = if(network.congestionScore > 5) CyberPink else NeonCyan, 
+                    modifier = Modifier.size(10.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    "${network.congestionScore} APs", 
+                    color = if(network.congestionScore > 5) CyberPink else Color.Gray, 
+                    style = MaterialTheme.typography.labelSmall
+                )
             }
         }
     }

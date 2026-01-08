@@ -8,7 +8,8 @@ import kotlinx.coroutines.flow.Flow
 data class SelectedWifi(
     @PrimaryKey val ssid: String,
     val password: String? = null,
-    val isEnabled: Boolean = true
+    val isEnabled: Boolean = true,
+    val isGuardEnabled: Boolean = false
 )
 
 @Entity(tableName = "wifi_vault")
@@ -27,13 +28,16 @@ data class TestResult(
     val latencyMs: Long,
     val jitterMs: Long,
     val packetLossPercent: Int,
+    val dnsResolutionMs: Long,
+    val dhcpTimeMs: Long,
     val rssi: Int,
     val frequency: Int,
-    val linkSpeed: Int,
+    val channel: Int,
     val bssid: String,
     val gatewayIp: String,
     val reliabilityScore: Int,
-    val qualityLabel: String
+    val qualityLabel: String,
+    val troubleshootingInfo: String? = null
 )
 
 @Dao
@@ -75,7 +79,7 @@ interface WifiDao {
     suspend fun getPasswordFromVault(ssid: String): String?
 }
 
-@Database(entities = [SelectedWifi::class, TestResult::class, VaultEntity::class], version = 3, exportSchema = false)
+@Database(entities = [SelectedWifi::class, TestResult::class, VaultEntity::class], version = 4, exportSchema = false)
 abstract class WifiDatabase : RoomDatabase() {
     abstract fun dao(): WifiDao
 

@@ -117,5 +117,55 @@ object NetworkTestUtils {
         return totalDiff / (samples.size - 1)
     }
 
+    suspend fun runDnsTest(host: String = "google.com", network: android.net.Network? = null): Long = withContext(Dispatchers.IO) {
+        val start = System.currentTimeMillis()
+        try {
+            if (network != null) {
+                network.getAllByName(host)
+            } else {
+                java.net.InetAddress.getAllByName(host)
+            }
+            System.currentTimeMillis() - start
+        } catch (e: Exception) {
+            -1L
+        }
+    }
+
+    suspend fun diagnoseNoInternet(gatewayIp: String, network: android.net.Network? = null): String = withContext(Dispatchers.IO) {
+        // Step 1: Ping Gateway
+        val gatewayReachable = try {
+            val socket = if (network != null) network.socketFactory.createSocket() else Socket()
+            socket.use { s ->
+                s.connect(InetSocketAddress(gatewayIp, 80), 1500) // Many gateways have web UI
+                true
+            }
+        } catch (e: Exception) {
+            // Backup check: generic socket connect
+            try {
+               val socket = if (network != null) network.socketFactory.createSocket() else Socket()
+               socket.use { s -> s.connect(InetSocketAddress(gatewayIp, 53), 1000); true }
+            } catch (e2: Exception) { false }
+        }
+
+        if (!gatewayReachable) return@withContext "LAYER 2 FAILURE: Gateway ($gatewayIp) is unreachable. Check Router power/cabling."
+
+        // Step 2: Ping External IP (No DNS)
+        val externalIpReachable = try {
+            val socket = if (network != null) network.socketFactory.createSocket() else Socket()
+            socket.use { s ->
+                s.connect(InetSocketAddress("1.1.1.1", 443), 1500)
+                true
+            }
+        } catch (e: Exception) { false }
+
+        if (!externalIpReachable) return@withContext "LAYER 3 FAILURE: Gateway is OK, but no route to Internet. ISP or Modem issue."
+
+        // Step 3: DNS Check
+        val dnsReachable = runDnsTest("google.com", network) != -1L
+        if (!dnsReachable) return@withContext "DNS FAILURE: Internet is active but DNS resolution failed. Check DNS server settings."
+
+        "ALL SYSTEMS NOMINAL: Potential protocol-specific blocking or firewall interference."
+    }
+
     data class LatencyData(val avgMs: Long, val jitterMs: Long, val lossPercent: Int)
 }
