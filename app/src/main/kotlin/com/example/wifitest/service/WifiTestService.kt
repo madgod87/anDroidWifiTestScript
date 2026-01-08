@@ -174,7 +174,8 @@ class WifiTestService : Service() {
             gatewayIp = gateway,
             reliabilityScore = quality.score,
             qualityLabel = quality.label,
-            troubleshootingInfo = trouble
+            troubleshootingInfo = trouble,
+            pingSamples = metrics.samples.joinToString(",")
         )
         db.dao().insertResult(result)
     }

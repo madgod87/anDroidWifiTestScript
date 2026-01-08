@@ -99,13 +99,14 @@ object NetworkTestUtils {
             delay(100)
         }
 
-        if (samples.isEmpty()) return@withContext LatencyData(0, 0, 100)
+        if (samples.isEmpty() && failures == 0) return@withContext LatencyData(0, 0, 0, emptyList())
+        if (samples.isEmpty()) return@withContext LatencyData(0, 0, 100, emptyList())
 
         val avgLatency = samples.average().toLong()
         val jitter = calculateJitter(samples)
         val packetLoss = (failures * 100) / totalAttempts
 
-        LatencyData(avgLatency, jitter, packetLoss)
+        LatencyData(avgLatency, jitter, packetLoss, samples)
     }
 
     private fun calculateJitter(samples: List<Long>): Long {
@@ -167,5 +168,5 @@ object NetworkTestUtils {
         "ALL SYSTEMS NOMINAL: Potential protocol-specific blocking or firewall interference."
     }
 
-    data class LatencyData(val avgMs: Long, val jitterMs: Long, val lossPercent: Int)
+    data class LatencyData(val avgMs: Long, val jitterMs: Long, val lossPercent: Int, val samples: List<Long> = emptyList())
 }

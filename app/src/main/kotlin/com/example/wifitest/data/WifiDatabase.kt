@@ -37,7 +37,8 @@ data class TestResult(
     val gatewayIp: String,
     val reliabilityScore: Int,
     val qualityLabel: String,
-    val troubleshootingInfo: String? = null
+    val troubleshootingInfo: String? = null,
+    val pingSamples: String? = null
 )
 
 @Dao
@@ -79,7 +80,7 @@ interface WifiDao {
     suspend fun getPasswordFromVault(ssid: String): String?
 }
 
-@Database(entities = [SelectedWifi::class, TestResult::class, VaultEntity::class], version = 4, exportSchema = false)
+@Database(entities = [SelectedWifi::class, TestResult::class, VaultEntity::class], version = 5, exportSchema = false)
 abstract class WifiDatabase : RoomDatabase() {
     abstract fun dao(): WifiDao
 
