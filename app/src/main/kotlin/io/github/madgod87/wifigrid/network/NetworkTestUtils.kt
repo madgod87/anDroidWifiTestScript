@@ -1,4 +1,4 @@
-package com.example.wifitest.network
+package io.github.madgod87.wifigrid.network
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay

@@ -1,4 +1,4 @@
-package com.example.wifitest.service
+package io.github.madgod87.wifigrid.service
 
 import android.app.*
 import android.content.Context
@@ -8,13 +8,13 @@ import android.os.BatteryManager
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
-import com.example.wifitest.R
-import com.example.wifitest.data.TestResult
-import com.example.wifitest.data.WifiDatabase
-import com.example.wifitest.network.HardwareUtils
-import com.example.wifitest.network.NetworkQualityAnalyzer
-import com.example.wifitest.network.NetworkTestUtils
-import com.example.wifitest.network.WifiConnector
+import io.github.madgod87.wifigrid.R
+import io.github.madgod87.wifigrid.data.TestResult
+import io.github.madgod87.wifigrid.data.WifiDatabase
+import io.github.madgod87.wifigrid.network.HardwareUtils
+import io.github.madgod87.wifigrid.network.NetworkQualityAnalyzer
+import io.github.madgod87.wifigrid.network.NetworkTestUtils
+import io.github.madgod87.wifigrid.network.WifiConnector
 import kotlinx.coroutines.*
 
 class WifiTestService : Service() {
@@ -121,7 +121,7 @@ class WifiTestService : Service() {
 
     private fun finalizeService() {
         android.util.Log.i("WIFI_GRID", "Cleaning up and stopping service")
-        sendBroadcast(Intent("com.example.wifitest.TEST_FINISHED").setPackage(packageName))
+        sendBroadcast(Intent("io.github.madgod87.wifigrid.TEST_FINISHED").setPackage(packageName))
         stopForeground(Service.STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
@@ -181,7 +181,7 @@ class WifiTestService : Service() {
     }
 
     private fun sendStatus(status: String) {
-        val intent = Intent("com.example.wifitest.STATUS_UPDATE")
+        val intent = Intent("io.github.madgod87.wifigrid.STATUS_UPDATE")
         intent.putExtra("status", status)
         intent.setPackage(packageName)
         sendBroadcast(intent)

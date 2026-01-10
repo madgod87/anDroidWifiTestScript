@@ -1,0 +1,12 @@
+Android Wi-Fi Grid Test System is a professional-grade diagnostic tool designed for investigating, testing, and benchmarking Wi-Fi networks in a "Grid" environment.
+
+Key Features:
+- Master Dashboard: View and "Arm" multiple nodes from nearby scans.
+- Mission Control: Execute automated diagnostic cycles across pulsed connections.
+- Quantum Traceroute: Visualize server hops and identify lag points.
+- Signal Hunter: High-frequency RSSI power gauge for finding dead zones.
+- Security Audit: Automated probing of gateway ports and encryption standards.
+- Smart Guard: Geofenced background monitoring for stability.
+- Branded PDF Reports: Export professional summaries with latency matrices and sparklines.
+
+Developed for Advanced Network Investigation, Site Surveys, and Cyber-Security Audits.

@@ -1,9 +1,9 @@
-package com.example.wifitest.network
+package io.github.madgod87.wifigrid.network
 
 import android.content.Context
 import android.net.wifi.WifiManager
 import android.os.Environment
-import com.example.wifitest.data.TestResult
+import io.github.madgod87.wifigrid.data.TestResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File

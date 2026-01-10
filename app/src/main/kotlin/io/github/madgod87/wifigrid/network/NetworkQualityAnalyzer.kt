@@ -1,4 +1,4 @@
-package com.example.wifitest.network
+package io.github.madgod87.wifigrid.network
 
 import kotlin.math.max
 import kotlin.math.min

@@ -1,4 +1,4 @@
-package com.example.wifitest.network
+package io.github.madgod87.wifigrid.network
 
 import android.content.Context
 import android.net.ConnectivityManager

@@ -46,6 +46,16 @@ To function as a grid testing tool, the app requires:
 4.  **Advanced Analysis**: Use the **TRACEROUTE** or **SIGNAL HUNTER** for real-time site surveys.
 5.  **Export Intelligence**: Generate **PDF Reports** from the mission logs for professional documentation.
 
+## ⚖️ License
+
+This project is licensed under the **GNU General Public License v3.0**. See the [LICENSE](LICENSE) file for details.
+
+## 📦 F-Droid Submission
+
+This app is prepared for submission to [F-Droid](https://f-droid.org/). 
+- **Metadata**: Located in `fastlane/metadata/`
+- **Build Recipe**: Template available in `fdroid.yml.template`
+
 ---
 
 *Developed for Advanced Network Investigation, Site Surveys, and Cyber-Security Audits.*

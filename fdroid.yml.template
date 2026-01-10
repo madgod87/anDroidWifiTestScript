@@ -1,0 +1,35 @@
+Categories:
+  - System
+  - Security
+License: GPL-3.0-or-later
+AuthorName: madgod87
+SourceCode: https://github.com/madgod87/anDroidWifiTestScript
+IssueTracker: https://github.com/madgod87/anDroidWifiTestScript/issues
+Summary: Wi-Fi Grid Diagnostic Master Tool
+Description: |-
+  Android Wi-Fi Grid Test System is a professional-grade diagnostic suite for high-fidelity 
+  network investigation. It performs automated "Mission Cycles" across multiple nodes, 
+  calculating reliability scores, jitter, and packet loss.
+
+  Features:
+  * Quantum Traceroute visualization
+  * Signal Hunter (RSSI gauge)
+  * Smart Guard (Background monitoring)
+  * Branded PDF Mission Reports
+  * Security Audit (Port scanning & Encryption check)
+
+RepoType: git
+Repo: https://github.com/madgod87/anDroidWifiTestScript
+
+Builds:
+  - versionName: '1.0'
+    versionCode: 1
+    commit: 'v1.0'
+    subdir: app
+    gradle:
+      - yes
+
+AutoUpdateMode: Version v%v
+UpdateCheckMode: Tags
+CurrentVersion: '1.0'
+CurrentVersionCode: 1

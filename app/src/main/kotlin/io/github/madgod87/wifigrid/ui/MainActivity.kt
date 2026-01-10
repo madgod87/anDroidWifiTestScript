@@ -1,4 +1,4 @@
-package com.example.wifitest.ui
+package io.github.madgod87.wifigrid.ui
 
 import android.Manifest
 import android.app.Application
@@ -46,11 +46,11 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.room.Room
-import com.example.wifitest.data.SelectedWifi
-import com.example.wifitest.data.TestResult
-import com.example.wifitest.data.WifiDatabase
-import com.example.wifitest.network.HardwareUtils
-import com.example.wifitest.service.WifiTestService
+import io.github.madgod87.wifigrid.data.SelectedWifi
+import io.github.madgod87.wifigrid.data.TestResult
+import io.github.madgod87.wifigrid.data.WifiDatabase
+import io.github.madgod87.wifigrid.network.HardwareUtils
+import io.github.madgod87.wifigrid.service.WifiTestService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -58,6 +58,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.platform.LocalUriHandler
+
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -185,7 +187,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val context = getApplication<Application>()
         val uri = androidx.core.content.FileProvider.getUriForFile(
             context,
-            "com.example.wifitest.fileprovider",
+            "io.github.madgod87.wifigrid.fileprovider",
             file
         )
         val intent = Intent(Intent.ACTION_SEND).apply {
@@ -205,11 +207,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _selectedResult.value = result
     }
 
-    val vault: Flow<List<com.example.wifitest.data.VaultEntity>> = db.dao().getVaultNetworks()
+    val vault: Flow<List<io.github.madgod87.wifigrid.data.VaultEntity>> = db.dao().getVaultNetworks()
 
     fun updateVault(ssid: String, password: String?) {
         viewModelScope.launch(Dispatchers.IO) {
-            db.dao().insertVault(com.example.wifitest.data.VaultEntity(ssid, password))
+            db.dao().insertVault(io.github.madgod87.wifigrid.data.VaultEntity(ssid, password))
         }
     }
 
@@ -218,7 +220,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val finalPass = password ?: db.dao().getPasswordFromVault(ssid)
             db.dao().insertSelected(SelectedWifi(ssid, finalPass)) 
             if (password != null) {
-                db.dao().insertVault(com.example.wifitest.data.VaultEntity(ssid, password))
+                db.dao().insertVault(io.github.madgod87.wifigrid.data.VaultEntity(ssid, password))
             }
         }
     }
@@ -239,7 +241,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun toggleGlobalGuard(context: Context) {
         _isGuardActive.value = !_isGuardActive.value
         if (_isGuardActive.value) {
-            val request = androidx.work.PeriodicWorkRequestBuilder<com.example.wifitest.worker.GuardWorker>(
+            val request = androidx.work.PeriodicWorkRequestBuilder<io.github.madgod87.wifigrid.worker.GuardWorker>(
                 15, java.util.concurrent.TimeUnit.MINUTES
             ).build()
             androidx.work.WorkManager.getInstance(context).enqueueUniquePeriodicWork(
@@ -271,7 +273,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             var count = 0
             allSsids.forEach { ssid ->
                 if (!existingInVault.contains(ssid) && ssid.isNotBlank()) {
-                    db.dao().insertVault(com.example.wifitest.data.VaultEntity(ssid, null))
+                    db.dao().insertVault(io.github.madgod87.wifigrid.data.VaultEntity(ssid, null))
                     count++
                 }
             }
@@ -467,8 +469,8 @@ class MainActivity : ComponentActivity() {
                     override fun onReceive(context: Context?, intent: Intent?) {
                         android.util.Log.i("WIFI_GRID_UI", "Broadcast received: ${intent?.action}")
                         when(intent?.action) {
-                            "com.example.wifitest.TEST_FINISHED" -> viewModel.finalizeTesting()
-                            "com.example.wifitest.STATUS_UPDATE" -> {
+                            "io.github.madgod87.wifigrid.TEST_FINISHED" -> viewModel.finalizeTesting()
+                            "io.github.madgod87.wifigrid.STATUS_UPDATE" -> {
                                 val status = intent.getStringExtra("status") ?: ""
                                 viewModel.updateStatus(status)
                             }
@@ -479,8 +481,8 @@ class MainActivity : ComponentActivity() {
                 ContextCompat.registerReceiver(context, wifiReceiver, IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION), ContextCompat.RECEIVER_EXPORTED)
                 
                 val testFilter = IntentFilter().apply {
-                    addAction("com.example.wifitest.TEST_FINISHED")
-                    addAction("com.example.wifitest.STATUS_UPDATE")
+                    addAction("io.github.madgod87.wifigrid.TEST_FINISHED")
+                    addAction("io.github.madgod87.wifigrid.STATUS_UPDATE")
                 }
                 ContextCompat.registerReceiver(context, testReceiver, testFilter, ContextCompat.RECEIVER_EXPORTED)
                 
@@ -518,6 +520,7 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun AppDrawer(currentScreen: Screen, onScreenSelected: (Screen) -> Unit) {
+    val uriHandler = LocalUriHandler.current
     ModalDrawerSheet(
         drawerContainerColor = SpaceDark,
         drawerContentColor = Color.White,
@@ -590,6 +593,22 @@ fun AppDrawer(currentScreen: Screen, onScreenSelected: (Screen) -> Unit) {
             icon = Icons.Default.Shield,
             selected = currentScreen == Screen.SECURITY,
             onClick = { onScreenSelected(Screen.SECURITY) }
+        )
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = NeonCyan.copy(alpha = 0.1f))
+        Text("EXTERNAL RESOURCES", modifier = Modifier.padding(start = 24.dp, bottom = 8.dp), style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+
+        DrawerItem(
+            label = "OPEN SOURCE LINK",
+            icon = Icons.Default.Code,
+            selected = false,
+            onClick = { uriHandler.openUri("https://github.com/madgod87/anDroidWifiTestScript") }
+        )
+        DrawerItem(
+            label = "DEVELOPER PROFILE",
+            icon = Icons.Default.Public,
+            selected = false,
+            onClick = { uriHandler.openUri("https://github.com/madgod87") }
         )
 
         Spacer(modifier = Modifier.weight(1f))
@@ -751,7 +770,7 @@ fun DashboardContent(
     testStatus: String,
     isScanning: Boolean,
     context: Context,
-    vault: List<com.example.wifitest.data.VaultEntity>
+    vault: List<io.github.madgod87.wifigrid.data.VaultEntity>
 ) {
     val savedSsids by viewModel.savedSsids
     var showPasswordDialog by remember { mutableStateOf<String?>(null) }
@@ -1425,7 +1444,7 @@ fun NeonIconButton(icon: ImageVector, onClick: () -> Unit) {
 }
 
 @Composable
-fun CredentialVaultContent(viewModel: MainViewModel, vault: List<com.example.wifitest.data.VaultEntity>) {
+fun CredentialVaultContent(viewModel: MainViewModel, vault: List<io.github.madgod87.wifigrid.data.VaultEntity>) {
     Column(modifier = Modifier.fillMaxSize()) {
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -1465,7 +1484,7 @@ fun CredentialVaultContent(viewModel: MainViewModel, vault: List<com.example.wif
 }
 
 @Composable
-fun VaultEntry(node: com.example.wifitest.data.VaultEntity, onSave: (String, String) -> Unit) {
+fun VaultEntry(node: io.github.madgod87.wifigrid.data.VaultEntity, onSave: (String, String) -> Unit) {
     var isEditing by remember { mutableStateOf(false) }
     var passText by remember { mutableStateOf(node.password ?: "") }
     var isVisible by remember { mutableStateOf(false) }

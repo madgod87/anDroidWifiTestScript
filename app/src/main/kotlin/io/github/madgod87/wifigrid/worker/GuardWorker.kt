@@ -1,14 +1,14 @@
-package com.example.wifitest.worker
+package io.github.madgod87.wifigrid.worker
 
 import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
-import com.example.wifitest.data.WifiDatabase
-import com.example.wifitest.network.HardwareUtils
-import com.example.wifitest.network.NetworkQualityAnalyzer
-import com.example.wifitest.network.NetworkTestUtils
-import com.example.wifitest.network.WifiConnector
-import com.example.wifitest.data.TestResult
+import io.github.madgod87.wifigrid.data.WifiDatabase
+import io.github.madgod87.wifigrid.network.HardwareUtils
+import io.github.madgod87.wifigrid.network.NetworkQualityAnalyzer
+import io.github.madgod87.wifigrid.network.NetworkTestUtils
+import io.github.madgod87.wifigrid.network.WifiConnector
+import io.github.madgod87.wifigrid.data.TestResult
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay

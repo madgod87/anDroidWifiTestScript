@@ -1,4 +1,4 @@
-package com.example.wifitest.data
+package io.github.madgod87.wifigrid.data
 
 import android.content.Context
 import androidx.room.*

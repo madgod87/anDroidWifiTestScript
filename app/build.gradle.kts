@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.wifitest"
+    namespace = "io.github.madgod87.wifigrid"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.example.wifitest"
+        applicationId = "io.github.madgod87.wifigrid"
         minSdk = 29
         targetSdk = 34
         versionCode = 1

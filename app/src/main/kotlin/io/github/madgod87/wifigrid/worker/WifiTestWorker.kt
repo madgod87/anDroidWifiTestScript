@@ -1,11 +1,11 @@
-package com.example.wifitest.worker
+package io.github.madgod87.wifigrid.worker
 
 import android.content.Context
 import android.content.Intent
 import androidx.core.content.ContextCompat
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
-import com.example.wifitest.service.WifiTestService
+import io.github.madgod87.wifigrid.service.WifiTestService
 
 class WifiTestWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
